@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-
-import type { ClawdbotConfig } from "../../config/config.js";
 import { resetProcessRegistryForTests } from "../../agents/bash-process-registry.js";
+import type { ClawdbotConfig } from "../../config/config.js";
 import type { MsgContext } from "../templating.js";
-import { buildCommandContext, handleCommands } from "./commands.js";
 import { resetBashChatCommandForTests } from "./bash-command.js";
+import { buildCommandContext, handleCommands } from "./commands.js";
 import { parseInlineDirectives } from "./directive-handling.js";
 
 function buildParams(
@@ -150,9 +149,7 @@ describe("handleCommands /bash", () => {
     const start = await handleCommands(buildParams("/bash echo hi", cfg));
     expect(start.reply?.text).toContain("bash started");
     const startedText = start.reply?.text ?? "";
-    const idMatch = startedText.match(
-      /session\s+([0-9a-fA-F-]{8,})/,
-    );
+    const idMatch = startedText.match(/session\s+([0-9a-fA-F-]{8,})/);
     expect(idMatch).toBeTruthy();
     const sessionId = (idMatch?.[1] ?? "").trim();
 
@@ -168,10 +165,7 @@ describe("handleCommands /bash", () => {
     expect(pollText).toContain("hi");
 
     const longStart = await handleCommands(
-      buildParams(
-        '/bash node -e "setTimeout(function(){},60000)"',
-        cfg,
-      ),
+      buildParams('/bash node -e "setTimeout(function(){},60000)"', cfg),
     );
     expect(longStart.reply?.text).toContain("bash started");
     const longIdMatch = (longStart.reply?.text ?? "").match(

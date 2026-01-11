@@ -1,10 +1,11 @@
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
-import { createBashTool } from "../../agents/bash-tools.js";
 import {
   getFinishedSession,
   getSession,
   markExited,
 } from "../../agents/bash-process-registry.js";
+import { createBashTool } from "../../agents/bash-tools.js";
+import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import { killProcessTree } from "../../agents/shell-utils.js";
 import type { ClawdbotConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
@@ -44,7 +45,8 @@ function clampNumber(value: number, min: number, max: number) {
 
 function resolveForegroundMs(cfg: ClawdbotConfig): number {
   const raw = cfg.commands?.bashForegroundMs;
-  if (typeof raw !== "number" || Number.isNaN(raw)) return DEFAULT_FOREGROUND_MS;
+  if (typeof raw !== "number" || Number.isNaN(raw))
+    return DEFAULT_FOREGROUND_MS;
   return clampNumber(Math.floor(raw), 0, MAX_FOREGROUND_MS);
 }
 
@@ -99,7 +101,8 @@ function getScopedSession(sessionId: string) {
   const running = getSession(sessionId);
   if (running && running.scopeKey === CHAT_BASH_SCOPE_KEY) return { running };
   const finished = getFinishedSession(sessionId);
-  if (finished && finished.scopeKey === CHAT_BASH_SCOPE_KEY) return { finished };
+  if (finished && finished.scopeKey === CHAT_BASH_SCOPE_KEY)
+    return { finished };
   return {};
 }
 
@@ -158,7 +161,10 @@ export async function handleBashChatCommand(params: {
 
   const agentId =
     params.agentId ??
-    resolveSessionAgentId({ sessionKey: params.sessionKey, config: params.cfg });
+    resolveSessionAgentId({
+      sessionKey: params.sessionKey,
+      config: params.cfg,
+    });
   const elevated = resolveElevatedPermissions({
     cfg: params.cfg,
     agentId,
@@ -166,9 +172,13 @@ export async function handleBashChatCommand(params: {
     provider: params.provider,
   });
   if (!elevated.enabled || !elevated.allowed) {
+    const runtimeSandboxed = resolveSandboxRuntimeStatus({
+      cfg: params.cfg,
+      sessionKey: params.ctx.SessionKey,
+    }).sandboxed;
     return {
       text: formatElevatedUnavailableMessage({
-        runtimeSandboxed: false,
+        runtimeSandboxed,
         failures: elevated.failures,
         sessionKey: params.ctx.SessionKey,
       }),
@@ -197,7 +207,10 @@ export async function handleBashChatCommand(params: {
     const { running, finished } = getScopedSession(sessionId);
     if (running) {
       attachActiveWatcher(sessionId);
-      const runtimeSec = Math.max(0, Math.floor((Date.now() - running.startedAt) / 1000));
+      const runtimeSec = Math.max(
+        0,
+        Math.floor((Date.now() - running.startedAt) / 1000),
+      );
       const tail = running.tail || "(no output yet)";
       return {
         text: [
@@ -260,13 +273,17 @@ export async function handleBashChatCommand(params: {
     if (activeJob?.state === "running" && activeJob.sessionId === sessionId) {
       activeJob = null;
     }
-    return { text: `⚙️ bash stopped (session ${formatSessionSnippet(sessionId)}).` };
+    return {
+      text: `⚙️ bash stopped (session ${formatSessionSnippet(sessionId)}).`,
+    };
   }
 
   // request.action === "run"
   if (liveJob) {
     const label =
-      liveJob.state === "running" ? formatSessionSnippet(liveJob.sessionId) : "starting";
+      liveJob.state === "running"
+        ? formatSessionSnippet(liveJob.sessionId)
+        : "starting";
     return {
       text: `⚠️ A /bash job is already running (${label}). Use /bash poll or /bash stop.`,
     };
@@ -275,7 +292,11 @@ export async function handleBashChatCommand(params: {
   const commandText = request.command.trim();
   if (!commandText) return buildUsageReply();
 
-  activeJob = { state: "starting", startedAt: Date.now(), command: commandText };
+  activeJob = {
+    state: "starting",
+    startedAt: Date.now(),
+    command: commandText,
+  };
 
   try {
     const foregroundMs = resolveForegroundMs(params.cfg);
@@ -322,9 +343,7 @@ export async function handleBashChatCommand(params: {
     const output =
       result.details?.status === "completed"
         ? result.details.aggregated
-        : result.content
-            .map((c) => ("text" in c ? c.text : ""))
-            .join("\n");
+        : result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
     return {
       text: [
         `⚙️ bash: ${commandText}`,
@@ -336,10 +355,9 @@ export async function handleBashChatCommand(params: {
     activeJob = null;
     const message = err instanceof Error ? err.message : String(err);
     return {
-      text: [
-        `⚠️ bash failed: ${commandText}`,
-        formatOutputBlock(message),
-      ].join("\n"),
+      text: [`⚠️ bash failed: ${commandText}`, formatOutputBlock(message)].join(
+        "\n",
+      ),
     };
   }
 }

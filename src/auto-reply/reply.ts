@@ -23,10 +23,7 @@ import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
 } from "../agents/workspace.js";
-import {
-  type ClawdbotConfig,
-  loadConfig,
-} from "../config/config.js";
+import { type ClawdbotConfig, loadConfig } from "../config/config.js";
 import { resolveSessionFilePath } from "../config/sessions.js";
 import { logVerbose } from "../globals.js";
 import { clearCommandLane, getQueueSize } from "../process/command-queue.js";
@@ -57,6 +54,10 @@ import {
   resolveDefaultModel,
 } from "./reply/directive-handling.js";
 import {
+  formatElevatedUnavailableMessage,
+  resolveElevatedPermissions,
+} from "./reply/elevated-permissions.js";
+import {
   buildGroupIntro,
   defaultGroupActivation,
   resolveGroupRequireMention,
@@ -76,10 +77,6 @@ import {
   ensureSkillSnapshot,
   prependSystemEvents,
 } from "./reply/session-updates.js";
-import {
-  formatElevatedUnavailableMessage,
-  resolveElevatedPermissions,
-} from "./reply/elevated-permissions.js";
 import { createTypingController } from "./reply/typing.js";
 import {
   createTypingSignaler,
