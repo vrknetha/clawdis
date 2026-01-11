@@ -22,14 +22,14 @@ For usability, fast commands should not force a polling workflow. `/bash` should
 
 ## Progress
 
-- [x] (2026-01-11) Update ExecPlan for “independent /bash” requirement and global one-at-a-time semantics (completed: clarified raw parsing, global job locking, and docs/test touch-points; remaining: keep updated as implementation proceeds).
-- [ ] (2026-01-11) Add config gate `commands.bash` (completed: none; remaining: types, zod schema, schema descriptions, docs examples).
-- [ ] (2026-01-11) Add `commands.bashForegroundMs` (completed: none; remaining: types, zod schema, schema descriptions, docs).
-- [ ] (2026-01-11) Register `/bash` in command registry (completed: none; remaining: `src/auto-reply/commands-registry.ts` + docs list).
-- [ ] (2026-01-11) Implement `/bash` runner + job tracking (completed: none; remaining: enforce global lock, start foreground/background job, clear lock on completion, format replies, decide host/sandbox behavior).
-- [ ] (2026-01-11) Implement `/bash poll` + `/bash stop` (bash-only) (completed: none; remaining: poll output/tail, stop most recent job, optional explicit `sessionId`).
-- [ ] (2026-01-11) Add/adjust tests and docs (completed: none; remaining: unit tests + `docs/tools/slash-commands.md` + `docs/gateway/configuration.md`).
-- [ ] (2026-01-11) Validate with `pnpm test` (completed: none; remaining: run tests, fix failures).
+- [x] (2026-01-11) Update ExecPlan for “independent /bash” requirement and global one-at-a-time semantics (completed: clarified raw parsing, global job locking, and docs/test touch-points).
+- [x] (2026-01-11) Add config gate `commands.bash` (completed: `src/config/types.ts`, `src/config/zod-schema.ts`, `src/config/schema.ts`, docs).
+- [x] (2026-01-11) Add `commands.bashForegroundMs` (completed: config types/schema/docs).
+- [x] (2026-01-11) Register `/bash` in command registry (completed: `src/auto-reply/commands-registry.ts`, `src/auto-reply/reply/commands.ts` routing, docs list).
+- [x] (2026-01-11) Implement `/bash` runner + job tracking (completed: `src/auto-reply/reply/bash-command.ts` with global one-job lock and foreground/background behavior).
+- [x] (2026-01-11) Implement `/bash poll` + `/bash stop` (bash-only) (completed: `src/auto-reply/reply/bash-command.ts`, preserves “does not abort agent” rule).
+- [x] (2026-01-11) Add/adjust tests and docs (completed: `src/auto-reply/reply/commands.test.ts`, `docs/tools/slash-commands.md`, `docs/gateway/configuration.md`, shared elevated gate helper).
+- [x] (2026-01-11) Validate with `pnpm lint && pnpm build && pnpm test && pnpm protocol:check` (completed).
 
 ## Surprises & Discoveries
 
@@ -38,6 +38,9 @@ For usability, fast commands should not force a polling workflow. `/bash` should
 
 - Observation: Inline directive parsing happens before command handling, and it can strip directive-like substrings from the message before the agent sees it. `/bash` must parse the raw message (`ctx.CommandBody` / `ctx.RawBody`) to avoid accidentally stripping parts of the intended shell command.
   Evidence (from `src/auto-reply/reply.ts`): directives are parsed from `commandSource = sessionCtx.CommandBody ?? sessionCtx.RawBody ?? ...` and the cleaned text is written back to `sessionCtx.Body` / `sessionCtx.BodyStripped` before `handleCommands(...)` is called.
+
+- Observation: Fresh dependency installs failed because the repository’s `patches/@mariozechner__pi-ai@0.42.2.patch` was truncated mid-hunk (the file ended at a `}` inside a diff).
+  Evidence: `pnpm install` failed with `ERR_PNPM_INVALID_PATCH ... hunk header integrity check failed` and the patch file was only 54 lines and ended mid-diff.
 
 ## Decision Log
 
@@ -65,9 +68,15 @@ For usability, fast commands should not force a polling workflow. `/bash` should
   Rationale: The gateway currently has no reliable cross-provider background-job notification channel; adding one would be a larger feature. Polling keeps the implementation small and predictable.
   Date/Author: 2026-01-11 / Codex
 
+- Decision: Fix the `@mariozechner/pi-ai@0.42.2` patch file so fresh installs can succeed.
+  Rationale: The previous patch file was invalid and prevented `pnpm install` from working, which blocks CI and any contributor workflow that starts from a clean checkout.
+  Date/Author: 2026-01-11 / Codex
+
 ## Outcomes & Retrospective
 
-(Fill in at completion.)
+Implemented `/bash` as an independent, command-only chat slash command that runs host-elevated bash commands behind explicit config + allowlist gates. It supports fast foreground execution, backgrounding for long-running jobs, and bash-only control commands (`/bash poll` / `/bash stop`), while enforcing a single global active `/bash` job at a time. Docs and tests were updated, and CI-equivalent checks (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm protocol:check`) pass.
+
+Revision note (2026-01-11): Updated this ExecPlan’s living sections to reflect the completed implementation and to record the dependency patch issue discovered during clean installs.
 
 ## Context and Orientation
 
